@@ -5,7 +5,7 @@ namespace TypeII.Grid
     public class GridManager : MonoBehaviour
     {
         [Header("Grid Size (cells)")]
-        public int width = 30;
+        public int width = 14;
         public int height = 20;
 
         [Header("Cell Size (world units)")]

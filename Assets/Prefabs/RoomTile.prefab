@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3342676806679103443}
   - component: {fileID: 104562488493399696}
   - component: {fileID: 5601764308250350990}
+  - component: {fileID: 1398553682686327785}
   m_Layer: 0
   m_Name: RoomTile
   m_TagString: Untagged
@@ -105,3 +106,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TypeII.Rooms.RoomTile
   roomType: 0
   cell: {x: 0, y: 0}
+--- !u!114 &1398553682686327785
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3402581189140449899}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aeae5676889d9c749a954388ca9cfdeb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RoomInstance
+  definition: {fileID: 0}
+  isOffline: 0

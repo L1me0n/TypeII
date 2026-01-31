@@ -1,25 +1,21 @@
 using UnityEngine;
-using TypeII.Rooms;
 
-namespace TypeII.UI
+public class BuildToolbarUI : MonoBehaviour
 {
-    public class BuildToolbarUI : MonoBehaviour
-    {
-        public BuildController buildController;
+    [SerializeField] private BuildController buildController;
 
-        public void SelectRoomA()
-        {
-            buildController.StartBuild(RoomType.RoomA);
-        }
+    [Header("Room Definitions")]
+    [SerializeField] private RoomDefinition oxygenRoom;
+    [SerializeField] private RoomDefinition waterRoom;
+    [SerializeField] private RoomDefinition foodRoom;
+    [SerializeField] private RoomDefinition energyRoom;
+    [SerializeField] private RoomDefinition schoolRoom;
 
-        public void SelectRoomB()
-        {
-            buildController.StartBuild(RoomType.RoomB);
-        }
+    public void SelectOxygen() => buildController.StartBuild(oxygenRoom);
+    public void SelectWater()  => buildController.StartBuild(waterRoom);
+    public void SelectFood()   => buildController.StartBuild(foodRoom);
+    public void SelectEnergy() => buildController.StartBuild(energyRoom);
+    public void SelectSchool() => buildController.StartBuild(schoolRoom);
 
-        public void Cancel()
-        {
-            buildController.CancelBuild();
-        }
-    }
+    public void Cancel() => buildController.CancelBuild();
 }

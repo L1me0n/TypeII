@@ -1,194 +1,170 @@
-using UnityEngine;
 using TypeII.Grid;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using System.Collections.Generic;
+using UnityEngine.UI;
 
-namespace TypeII.Rooms
+public class BuildController : MonoBehaviour
 {
-    public class BuildController : MonoBehaviour
+    [Header("References")]
+    [SerializeField] private GridManager grid;
+    [SerializeField] private Transform roomsRoot;
+    [SerializeField] private RoomTile roomTilePrefab;
+
+    [Header("Ghost Tint")]
+    [SerializeField] private Color ghostValidTint = new Color(1f, 1f, 1f, 0.55f);
+    [SerializeField] private Color ghostInvalidTint = new Color(1f, 0.2f, 0.2f, 0.55f);
+
+    [Header("Arrival Room (auto spawn)")]
+    [SerializeField] private bool spawnArrivalRoom = true;
+    [SerializeField] private Vector2Int arrivalCell = new Vector2Int(0, 0);
+    [SerializeField] private RoomDefinition arrivalDefinition;
+
+    private bool _isBuilding;
+    private RoomDefinition _selectedDefinition;
+
+    private RoomTile _ghostTile;
+    private SpriteRenderer _ghostRenderer;
+    private RoomInstance _ghostInstance;
+
+    private void Start()
     {
-        [Header("Scene refs")]
-        public GridManager grid;
-        public Transform roomsRoot;
-
-        [Header("Prefabs")]
-        public RoomTile roomTilePrefab;
-
-        [Header("Initial Rooms")]
-        public bool spawnArrivalRoom = true;
-        public Vector2Int arrivalCell = new Vector2Int(0, 0);
-
-        [Header("Ghost visuals")]
-        public Color validColor = new Color(1f, 1f, 1f, 0.6f);
-        public Color invalidColor = new Color(1f, 0.3f, 0.3f, 0.6f);
-
-        private bool isBuilding;
-        private RoomType selectedType;
-
-        private RoomTile ghostTile;
-        private SpriteRenderer ghostRenderer;
-
-        private void Start()
-    {
-        if (!spawnArrivalRoom) return;
-
-        // Safety checks so Unity doesn't explode silently
-        if (grid == null)
-        {
-            Debug.LogError("BuildController: GridManager reference is missing!");
-            return;
-        }
-
-        if (roomsRoot == null)
-        {
-            Debug.LogError("BuildController: RoomsRoot reference is missing!");
-            return;
-        }
-
-        if (roomTilePrefab == null)
-        {
-            Debug.LogError("BuildController: RoomTile prefab reference is missing!");
-            return;
-        }
-
-        // If that cell is already occupied, don't place again
-        if (!grid.IsInBounds(arrivalCell))
-        {
-            Debug.LogError($"Arrival cell {arrivalCell} is out of bounds. Adjust grid origin/size or arrivalCell.");
-            return;
-        }
-
-        if (grid.IsOccupied(arrivalCell))
-        {
-            Debug.LogWarning($"Arrival cell {arrivalCell} is already occupied, skipping spawn.");
-            return;
-        }
-
-        // Place the initial arrival room
-        RoomTile tile = Instantiate(roomTilePrefab, roomsRoot);
-        tile.roomType = RoomType.Arrival;
-        tile.cell = arrivalCell;
-
-        var sr = tile.GetComponent<SpriteRenderer>();
-        if (sr != null)
-        {
-            sr.color = new Color(0.6f, 0.9f, 1f, 1f); // light cyan
-        }
-
-
-        Vector2 world = grid.CellToWorldCenter(arrivalCell);
-        tile.transform.position = new Vector3(world.x, world.y, 0);
-
-        // Mark occupancy so player cannot build there
-        grid.SetOccupied(arrivalCell, true);
-
-        tile.gameObject.name = "ArrivalRoom";
+        if (spawnArrivalRoom && arrivalDefinition != null)
+            SpawnRoom(arrivalCell, arrivalDefinition);
     }
 
+    private void Update()
+    {
+        if (!_isBuilding) return;
 
-        private void Update()
+        // Cancel should always work
+        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
         {
-            if (!isBuilding) 
-            {
-                // Still allow cancel keys even when not building? Optional.
-                return;
-            }
-
-            // Cancel build
-            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
-            {
-                CancelBuild();
-                return;
-            }
-
-            Vector2Int cell = GetMouseCell();
-            bool valid = CanPlaceAt(cell);
-
-            UpdateGhost(cell, valid);
-
-            if (valid && Input.GetMouseButtonDown(0))
-            {
-                Place(cell);
-            }
+            CancelBuild();
+            return;
         }
 
-        public void StartBuild(RoomType type)
+        // Always update ghost position (even if mouse is over UI)
+        Vector2 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2Int cell = grid.WorldToCell(mouseWorld);
+
+        bool canPlace = CanPlaceAt(cell);
+        UpdateGhost(cell, canPlace);
+
+        // But block PLACEMENT if clicking UI
+        bool pointerOverUI = IsPointerOverBlockingUI();
+
+        if (Input.GetMouseButtonDown(0))
         {
-            selectedType = type;
-            isBuilding = true;
+            if (pointerOverUI) return;  // <--- key line
 
-            EnsureGhost();
-        }
-
-        public void CancelBuild()
-        {
-            isBuilding = false;
-
-            if (ghostTile != null)
-            {
-                Destroy(ghostTile.gameObject);
-                ghostTile = null;
-                ghostRenderer = null;
-            }
-        }
-
-        private void EnsureGhost()
-        {
-            if (ghostTile != null) return;
-
-            ghostTile = Instantiate(roomTilePrefab);
-            ghostTile.name = "GhostTile";
-            ghostTile.roomType = selectedType;
-
-            ghostRenderer = ghostTile.GetComponent<SpriteRenderer>();
-            if (ghostRenderer != null)
-            {
-                ghostRenderer.sortingOrder = 1000; // keep on top
-            }
-
-            // Ghost should not be parented to RoomsRoot because it's not a real placed room
-            ghostTile.transform.SetParent(null);
-        }
-
-        private void UpdateGhost(Vector2Int cell, bool valid)
-        {
-            if (ghostTile == null) EnsureGhost();
-
-            ghostTile.roomType = selectedType;
-            ghostTile.cell = cell;
-
-            Vector2 world = grid.CellToWorldCenter(cell);
-            ghostTile.transform.position = new Vector3(world.x, world.y, 0);
-
-            if (ghostRenderer != null)
-                ghostRenderer.color = valid ? validColor : invalidColor;
-        }
-
-        private Vector2Int GetMouseCell()
-        {
-            Vector3 mouse = Input.mousePosition;
-            Vector3 world = Camera.main.ScreenToWorldPoint(mouse);
-            return grid.WorldToCell(world);
-        }
-
-        private bool CanPlaceAt(Vector2Int cell)
-        {
-            if (!grid.IsInBounds(cell)) return false;
-            if (grid.IsOccupied(cell)) return false;
-
-            return true;
-        }
-
-        private void Place(Vector2Int cell)
-        {
-            // Create real tile
-            RoomTile tile = Instantiate(roomTilePrefab, roomsRoot);
-            tile.roomType = selectedType;
-            tile.cell = cell;
-
-            Vector2 world = grid.CellToWorldCenter(cell);
-            tile.transform.position = new Vector3(world.x, world.y, 0);
-
-            // Mark occupancy
-            grid.SetOccupied(cell, true);
+            if (canPlace)
+                SpawnRoom(cell, _selectedDefinition);
         }
     }
+
+    public void StartBuild(RoomDefinition definition)
+    {
+        if (definition == null) return;
+
+        _isBuilding = true;
+        _selectedDefinition = definition;
+
+        if (_ghostTile == null)
+            CreateGhost();
+
+        ApplyGhostDefinition();
+    }
+
+    public void CancelBuild()
+    {
+        _isBuilding = false;
+        _selectedDefinition = null;
+
+        if (_ghostTile != null)
+            Destroy(_ghostTile.gameObject);
+
+        _ghostTile = null;
+        _ghostRenderer = null;
+        _ghostInstance = null;
+    }
+
+    private bool CanPlaceAt(Vector2Int cell)
+    {
+        if (!grid.IsInBounds(cell)) return false;
+        if (grid.IsOccupied(cell)) return false;
+        return true;
+    }
+
+    private void CreateGhost()
+    {
+        _ghostTile = Instantiate(roomTilePrefab);
+        _ghostTile.name = "GhostRoom";
+
+        _ghostRenderer = _ghostTile.GetComponent<SpriteRenderer>();
+        _ghostInstance = _ghostTile.GetComponent<RoomInstance>();
+
+        ApplyGhostDefinition();
+    }
+
+    private void ApplyGhostDefinition()
+    {
+        if (_ghostInstance == null) return;
+
+        _ghostInstance.definition = _selectedDefinition;
+        _ghostInstance.ApplyVisuals();
+
+        // Force ghost transparency (ApplyVisuals might set opaque color)
+        if (_ghostRenderer != null)
+            _ghostRenderer.color = ghostValidTint;
+    }
+
+    private void UpdateGhost(Vector2Int cell, bool canPlace)
+    {
+        if (_ghostTile == null) CreateGhost();
+
+        _ghostTile.cell = cell;
+        _ghostTile.transform.position = grid.CellToWorldCenter(cell);
+
+        if (_ghostRenderer != null)
+            _ghostRenderer.color = canPlace ? ghostValidTint : ghostInvalidTint;
+    }
+
+    private void SpawnRoom(Vector2Int cell, RoomDefinition definition)
+    {
+        var tile = Instantiate(roomTilePrefab, roomsRoot);
+        tile.cell = cell;
+        tile.transform.position = grid.CellToWorldCenter(cell);
+
+        var inst = tile.GetComponent<RoomInstance>();
+        inst.definition = definition;
+        inst.ApplyVisuals();
+        inst.SetOffline(false);
+
+        tile.name = definition != null ? definition.displayName : "Room";
+        grid.SetOccupied(cell, true);
+    }
+
+    private static bool IsPointerOverBlockingUI()
+    {
+        if (EventSystem.current == null) return false;
+
+        var data = new PointerEventData(EventSystem.current)
+        {
+            position = Input.mousePosition
+        };
+
+        var results = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(data, results);
+
+        // Block only if the top UI under the cursor is actually interactable (Button, Slider, TMP_InputField, etc.)
+        foreach (var r in results)
+        {
+            if (r.gameObject.GetComponentInParent<Selectable>() != null)
+                return true;
+        }
+
+        return false;
+}
+
 }
