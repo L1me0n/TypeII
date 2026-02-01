@@ -6,6 +6,8 @@ using UnityEngine.UI;
 
 public class BuildController : MonoBehaviour
 {
+    public System.Action OnBuildCanceled;
+
     [Header("References")]
     [SerializeField] private GridManager grid;
     [SerializeField] private Transform roomsRoot;
@@ -87,6 +89,8 @@ public class BuildController : MonoBehaviour
         _ghostTile = null;
         _ghostRenderer = null;
         _ghostInstance = null;
+
+        OnBuildCanceled?.Invoke();
     }
 
     private bool CanPlaceAt(Vector2Int cell)
